@@ -1,0 +1,73 @@
+---
+- hosts: loadbalancer
+  become: true
+  tasks:
+    - name: verify nginx service
+      command: service nginx status warn=False
+
+    - name: verify nginx is listening on port 80      
+      wait_for: port=80 timeout=1 
+
+
+
+- hosts: webserver
+  become: true
+  tasks:
+     - name: verify apache2 service 
+       command: service apache2 status warn=False
+
+     - name: verify nginx is listening on port 80    
+       wait_for: port=80 timeout=1
+
+- hosts: database
+  become: true
+  tasks:
+     - name: verify mysql service 
+       command: service mysql status warn=False
+
+     - name: verify nginx is listening on port 3306
+       wait_for: host={{ ansible_eth1.ipv4.address }} port=3306 timeout=1
+
+     - name: verify ip address  
+       debug: var={{ ansible_eth1.ipv4.address }}
+
+- hosts: control
+  tasks:
+    - name: verify end-to-end response
+      uri: url=http://{{item}} return_content=yes
+      with_items: groups.loadbalancer
+      register: lb_index
+
+    - fail: msg="index failed to return content from loadbalancer"
+      when: "'Hello, from sunny' not in item.content"
+      with_items: "{{lb_index.results}}"
+
+    - name: verify end-to-end db response
+      uri: url=http://{{item}}/db return_content=yes
+      with_items: groups.db01 
+      register: db_index
+
+    - fail: msg="index failed to return content from db"
+      when: "'Database connected from' not in item.content"
+      with_items: "{{db_index.results}}"
+
+
+- hosts: loadbalancer
+  tasks:
+    - name: verify backend response
+      uri: url=http://{{item}} return_content=yes
+      with_items: groups.webserver 
+      register: app_index
+
+    - fail: msg="index failed to return content from loadbalancer"
+      when: "'Hello, from sunny {{item.item}}' not in item.content"
+      with_items: "{{app_index.results}}"
+
+    - name: verify backend db response
+      uri: url=http://{{item}}/db return_content=yes
+      with_items: groups.db01 
+      register: app_db
+
+    - fail: msg="index failed to return content from db"
+      when: "'Database connected from' not in item.content"
+      with_items: "{{app_db.results}}"

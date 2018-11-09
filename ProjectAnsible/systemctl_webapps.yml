@@ -1,0 +1,8 @@
+---
+- hosts: webserver
+  become: true
+  tasks:
+    - name: install systemctl package
+      apt: name=systemctl state=present update_cache=yes
+
+      
