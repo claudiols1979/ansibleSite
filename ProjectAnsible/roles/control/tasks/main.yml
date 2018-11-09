@@ -4,5 +4,3 @@
   with_items:
     - curl
     - python-httplib2
-    - net-tools
-    - python-netaddr
